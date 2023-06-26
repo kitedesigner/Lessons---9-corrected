@@ -1,0 +1,95 @@
+# frozen_string_literal: true
+
+require_relative 'manufacturer'
+require_relative 'instance_counter'
+require_relative 'validation'
+
+# Class for creating trains
+# rubocop:disable Style/ClassVars
+class Train
+  include Manufacturer
+  include InstanceCounter
+  include Validation
+  attr_reader :speed, :carriages, :type, :number
+
+  @@trains = []
+
+  validate :number, :format, /^([a-zа-я]{3}|[0-9]{3})-?([a-zа-я]{2}|[0-9]{2})$/i
+  validate :number, :presence
+  validate :number, :type, String
+
+  def initialize(number)
+    @number = number
+    @carriages = []
+    @speed = 0
+    if valid?
+      @@trains << self
+      register_instance
+    else
+      validate!
+    end
+  end
+
+  def self.find(number)
+    @@trains.find { |train| train.number == number }
+  end
+
+  def increase_speed(growth)
+    @speed += growth
+  end
+
+  def braking
+    @speed = 0
+  end
+
+  def add_carriage(carriage)
+    @carriages << carriage if speed.zero? && type == carriage.type
+  end
+
+  def delete_carriage(carriage)
+    @carriages.delete(carriage) if speed.zero? && @carriages.size.positive?
+  end
+
+  def carriages_quantity
+    @carriages.size
+  end
+
+  def each_carriage(&block)
+    @carriages.each { |carriage| block.call(carriage) }
+  end
+
+  def receive_route(route)
+    @route = route
+    @current_station_index = 0
+    route.stations[0].receive_train(self)
+  end
+
+  def current_station
+    @route.stations[@current_station_index]
+  end
+
+  def go_next_station
+    return unless next_station
+
+    current_station.dispatch_train(self)
+    @current_station_index += 1
+    current_station.receive_train(self)
+  end
+
+  def next_station
+    @route.stations[@current_station_index + 1]
+  end
+
+  def go_previous_station
+    return unless previous_station
+
+    current_station.dispatch_train(self)
+    @current_station_index -= 1
+    current_station.receive_train(self)
+  end
+
+  def previous_station
+    @route.stations[@current_station_index - 1] if @current_station_index.positive?
+  end
+end
+# rubocop:enable Style/ClassVars
